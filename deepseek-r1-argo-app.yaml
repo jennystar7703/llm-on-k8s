@@ -1,20 +1,22 @@
+# deepseek-r1-argo-app.yaml
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
   name: deepseek-r1-app
-  namespace: argocd # Argo CD's namespace
+  namespace: argocd # CRITICAL: This Application CRD must be in the argocd namespace
 spec:
   project: default
   source:
     repoURL: https://github.com/jennystar7703/llm-on-k8s.git # Your repo
-    targetRevision: HEAD
+    targetRevision: HEAD # Or 'main'
     path: k8s
+    kustomize: {} # Tells Argo CD to use Kustomize as kustomization.yaml is present
   destination:
-    server: https://kubernetes.default.svc
-    namespace: default # Target namespace for your LLM app
+    server: https://kubernetes.default.svc # K3s cluster
+    namespace: default # Or your target namespace like 'vllm-apps'
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
-    - CreateNamespace=true # If the target namespace doesn't exist
+    - CreateNamespace=true

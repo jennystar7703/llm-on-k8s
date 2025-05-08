@@ -17,13 +17,25 @@ spec:
       restartPolicy: Always
       containers:
       - name: vllm-container
-        image: vllm-openai-server # Kustomize will replace this with vllm/vllm-openai:tag
+        image: vllm-openai-server
+        env: # <-- ADD ENVIRONMENT VARIABLES HERE
+          - name: NCCL_DEBUG
+            value: "INFO"
+          - name: NCCL_P2P_DISABLE # Usually 0 for enabled, 1 for disabled. Check vLLM/NCCL docs.
+            value: "0"
+          - name: VLLM_WORKER_MULTIPROC_METHOD
+            value: "spawn"
+          - name: PYTORCH_CUDA_ALLOC_CONF
+            value: "expandable_segments:True"
+            # CUDA_VISIBLE_DEVICES is managed by Kubernetes via nvidia.com/gpu resource requests
         command: ["python3", "-m", "vllm.entrypoints.openai.api_server"]
         args:
           - "--model"
           - "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
+          - "--dtype"
+          - "auto"
           - "--tensor-parallel-size"
-          - "2" # This model should fit on 2 GPUs with TP=2
+          - "4" # This model should fit on 2 GPUs with TP=2
           - "--gpu-memory-utilization"
           - "0.90" # Use 90% of GPU memory
           - "--max-model-len"
@@ -38,9 +50,9 @@ spec:
           containerPort: 8000
         resources:
           limits:
-            nvidia.com/gpu: "2" # Request 2 GPUs
+            nvidia.com/gpu: "4" # Request 4 GPUs
           requests:
-            nvidia.com/gpu: "2" # Must match limits
+            nvidia.com/gpu: "4" # Must match limits
         livenessProbe:
           httpGet:
             path: /health # vLLM's OpenAI endpoint has /health
@@ -65,7 +77,7 @@ spec:
       volumes:
         - name: model-cache
           hostPath:
-            path: /mnt/data/hf_cache_deepseek_r1 # Create this dir on your K8s node
+            path: /home/filadmin/ai/hf_cache_deepseek_r1 # Create this dir on your K8s node
             type: DirectoryOrCreate
         - name: dshm
           emptyDir:
