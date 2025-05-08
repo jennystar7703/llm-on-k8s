@@ -1,0 +1,20 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: deepseek-r1-app
+  namespace: argocd # Argo CD's namespace
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/jennystar7703/llm-on-k8s.git # Your repo
+    targetRevision: HEAD
+    path: k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: default # Target namespace for your LLM app
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+    - CreateNamespace=true # If the target namespace doesn't exist
