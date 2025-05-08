@@ -1,0 +1,9 @@
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+resources:
+  - deployment.yaml
+  - service.yaml
+images:
+  - name: vllm-openai-server # A placeholder name we'll use in deployment.yaml
+    newName: vllm/vllm-openai # The actual image name
+    newTag: latest # The image tag (CI will update this)

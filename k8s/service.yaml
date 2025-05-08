@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: deepseek-r1-service
+spec:
+  selector:
+    app: deepseek-r1
+  ports:
+    - protocol: TCP
+      port: 80 # Service port
+      targetPort: http # Maps to containerPort 8000 named 'http'
+  type: NodePort # Or LoadBalancer if your K8s supports it and you want external access

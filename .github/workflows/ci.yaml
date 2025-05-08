@@ -1,0 +1,95 @@
+name: LLM CI Pipeline
+
+on:
+  push:
+    branches:
+      - main # Or your primary branch
+    paths: # Trigger if app code changes (if you had an app/ dir) or if you manually update kustomization.yaml
+      - 'app/**'
+      - 'k8s/kustomization.yaml'
+  workflow_dispatch: # Allows manual triggering
+    inputs:
+      image_tag:
+        description: 'vLLM Image Tag (e.g., v0.4.0, latest)'
+        required: true
+        default: 'latest' # Or a specific stable version like 'v0.4.0'
+
+jobs:
+  # Job 1: (Optional) Build and Push Docker Image if you have app/Dockerfile
+  # If you are ONLY using the public vllm/vllm-openai image, you can remove or comment out this job.
+  # build-and-push-llm-image:
+  #   runs-on: ubuntu-latest
+  #   if: github.event_name == 'push' && contains(join(github.event.commits.*.message, ' '), '[build-image]') # Only build if commit message contains [build-image] or app/ dir changes
+  #   steps:
+  #     - name: Checkout code
+  #       uses: actions/checkout@v3
+
+  #     - name: Set up Docker Buildx
+  #       uses: docker/setup-buildx-action@v2
+
+  #     - name: Login to Docker Hub
+  #       uses: docker/login-action@v2
+  #       with:
+  #         username: ${{ secrets.DOCKERHUB_USERNAME }}
+  #         password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+  #     - name: Build and push vLLM app image
+  #       id: docker_build
+  #       uses: docker/build-push-action@v4
+  #       with:
+  #         context: ./app # Path to your Dockerfile context
+  #         push: true
+  #         tags: yourdockerhubusername/deepseek-vllm-app:${{ github.sha }} # Example tag
+
+  #     - name: Echo new image tag
+  #       run: echo "New image tag is yourdockerhubusername/deepseek-vllm-app:${{ github.sha }}"
+
+  update-k8s-manifests:
+    runs-on: ubuntu-latest
+    # needs: build-and-push-llm-image # Uncomment if you have the build job
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          token: ${{ secrets.PAT_TOKEN }} # A Personal Access Token to push changes back
+
+      - name: Install Kustomize
+        run: |
+          curl -s "https://raw.githubusercontent.com/kubernetes-sigs/kustomize/master/hack/install_kustomize.sh"  | bash
+          sudo mv kustomize /usr/local/bin/
+
+      - name: Determine Image Tag
+        id: determine_tag
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "IMAGE_TAG=${{ github.event.inputs.image_tag }}" >> $GITHUB_ENV
+          # elif [[ "${{ needs.build-and-push-llm-image.outputs.image_tag }}" != "" ]]; then # If using custom build
+            # echo "IMAGE_TAG=${{ needs.build-and-push-llm-image.outputs.image_tag }}" >> $GITHUB_ENV
+          else
+            # Default to 'latest' or a specific stable version if no other conditions met
+            # For this example, we assume we want to update to a specific public vLLM tag
+            # or the one specified in workflow_dispatch
+            # Let's assume we generally stick to 'latest' unless specified via workflow_dispatch
+            # This logic needs to be adapted if you build your own image
+            echo "IMAGE_TAG=${{ github.event.inputs.image_tag || 'latest' }}" >> $GITHUB_ENV
+          fi
+          echo "Using image tag: $IMAGE_TAG"
+
+      - name: Update image tag in Kustomization
+        working-directory: ./k8s
+        run: |
+          kustomize edit set image vllm-openai-server=vllm/vllm-openai:${{ env.IMAGE_TAG }}
+          cat kustomization.yaml # For debugging
+
+      - name: Commit and push manifest changes
+        run: |
+          git config --global user.name 'github-actions[bot]'
+          git config --global user.email 'github-actions[bot]@users.noreply.github.com'
+          git add k8s/kustomization.yaml
+          # Check if there are changes to commit
+          if git diff --staged --quiet; then
+            echo "No changes to commit."
+          else
+            git commit -m "Update vLLM image to vllm/vllm-openai:${{ env.IMAGE_TAG }} [skip ci]"
+            git push
+          fi

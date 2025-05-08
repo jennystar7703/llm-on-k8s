@@ -1,0 +1,74 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: deepseek-r1-server
+  labels:
+    app: deepseek-r1
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: deepseek-r1
+  template:
+    metadata:
+      labels:
+        app: deepseek-r1
+    spec:
+      restartPolicy: Always
+      containers:
+      - name: vllm-container
+        image: vllm-openai-server # Kustomize will replace this with vllm/vllm-openai:tag
+        command: ["python3", "-m", "vllm.entrypoints.openai.api_server"]
+        args:
+          - "--model"
+          - "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
+          - "--tensor-parallel-size"
+          - "2" # This model should fit on 2 GPUs with TP=2
+          - "--gpu-memory-utilization"
+          - "0.90" # Use 90% of GPU memory
+          - "--max-model-len"
+          - "4096" # Adjust based on model's capabilities
+          - "--port"
+          - "8000"
+          - "--host"
+          - "0.0.0.0"
+          # - "--disable-log-requests" # Optional: for less verbose logging
+        ports:
+        - name: http
+          containerPort: 8000
+        resources:
+          limits:
+            nvidia.com/gpu: "2" # Request 2 GPUs
+          requests:
+            nvidia.com/gpu: "2" # Must match limits
+        livenessProbe:
+          httpGet:
+            path: /health # vLLM's OpenAI endpoint has /health
+            port: http
+          initialDelaySeconds: 600 # Generous time for model download & loading
+          periodSeconds: 30
+          timeoutSeconds: 15
+          failureThreshold: 3
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 600
+          periodSeconds: 30
+          timeoutSeconds: 15
+          successThreshold: 1
+        volumeMounts:
+          - name: model-cache
+            mountPath: /root/.cache/huggingface # Default HF cache
+          - name: dshm
+            mountPath: /dev/shm
+      volumes:
+        - name: model-cache
+          hostPath:
+            path: /mnt/data/hf_cache_deepseek_r1 # Create this dir on your K8s node
+            type: DirectoryOrCreate
+        - name: dshm
+          emptyDir:
+            medium: Memory
+            sizeLimit: 32Gi # Adjust based on vLLM needs (Ray)
+      terminationGracePeriodSeconds: 120
