@@ -16,7 +16,6 @@ on:
 
 jobs:
   # Job 1: (Optional) Build and Push Docker Image if you have app/Dockerfile
-  # If you are ONLY using the public vllm/vllm-openai image, you can remove or comment out this job.
   # build-and-push-llm-image:
   #   runs-on: ubuntu-latest
   #   if: github.event_name == 'push' && contains(join(github.event.commits.*.message, ' '), '[build-image]') # Only build if commit message contains [build-image] or app/ dir changes

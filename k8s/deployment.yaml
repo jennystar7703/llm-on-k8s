@@ -5,7 +5,7 @@ metadata:
   labels:
     app: deepseek-r1
 spec:
-  replicas: 1
+  replicas: 2
   selector:
     matchLabels:
       app: deepseek-r1
@@ -15,13 +15,14 @@ spec:
         app: deepseek-r1
     spec:
       restartPolicy: Always
+      #runtimeClassName: nvidia
       containers:
       - name: vllm-container
         image: vllm-openai-server
         env: # <-- ADD ENVIRONMENT VARIABLES HERE
           - name: NCCL_DEBUG
             value: "INFO"
-          - name: NCCL_P2P_DISABLE # Usually 0 for enabled, 1 for disabled. Check vLLM/NCCL docs.
+          - name: NCCL_P2P_DISABLE # 0 for enabled, 1 for disabled
             value: "0"
           - name: VLLM_WORKER_MULTIPROC_METHOD
             value: "spawn"
@@ -32,14 +33,16 @@ spec:
         args:
           - "--model"
           - "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
+          - "--quantization"
+          - "awq"
           - "--dtype"
           - "auto"
           - "--tensor-parallel-size"
-          - "4" # This model should fit on 2 GPUs with TP=2
+          - "4" # fit on 4 GPUs with TP=4
           - "--gpu-memory-utilization"
-          - "0.90" # Use 90% of GPU memory
+          - "0.95" # Use 95% of GPU memory
           - "--max-model-len"
-          - "4096" # Adjust based on model's capabilities
+          - "8192" # Adjust based on model's capabilities
           - "--port"
           - "8000"
           - "--host"
@@ -71,7 +74,7 @@ spec:
           successThreshold: 1
         volumeMounts:
           - name: model-cache
-            mountPath: /root/.cache/huggingface # Default HF cache
+            mountPath: /home/filadmin/.cache/huggingface # Default HF cache
           - name: dshm
             mountPath: /dev/shm
       volumes:
