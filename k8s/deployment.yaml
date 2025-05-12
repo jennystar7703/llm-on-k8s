@@ -33,8 +33,8 @@ spec:
         args:
           - "--model"
           - "deepseek-ai/DeepSeek-R1-Distill-Qwen-7B"
-          - "--quantization"
-          - "awq"
+          #- "--quantization"
+          #- "awq"
           - "--dtype"
           - "auto"
           - "--tensor-parallel-size"
